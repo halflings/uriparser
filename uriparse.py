@@ -102,6 +102,8 @@ class Uri(object):
         uri_repr += "* Path: '{}'\n".format(self.path)
         if self.parameters:
             uri_repr += "* Query parameters: '{}'\n".format(self.parameters)
+        if self.fragment:
+            uri_repr += "* Fragment: '{}'\n".format(self.fragment)
         return uri_repr
 
 if __name__ == '__main__':

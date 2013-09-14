@@ -19,3 +19,4 @@ This will output:
       . Port = '8042'
     * Path: '/over/there/index.dtb'
     * Query parameters: '{'type': 'animal', 'name': 'narwhal'}'
+    * Fragment: 'nose'
