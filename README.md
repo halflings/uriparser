@@ -1,6 +1,6 @@
 uriparser
 =========
-### Work in progress!
+#### Work in progress!
 URI parser for Python that supports many schemes (URLs, mailto, ...)
 
 ### Example:
