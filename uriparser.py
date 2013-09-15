@@ -1,3 +1,4 @@
+import json
 
 class Uri(object):
     
@@ -11,10 +12,10 @@ class Uri(object):
         return ''.join(c if not c in Uri.ESCAPE_CODES else Uri.ESCAPE_CODES[c] for c in string)
 
     def __init__(self, uri):
-        self.uri = uri.strip()
+        uri = uri.strip().lower()
 
-        self.scheme_name = uri.split(':')[0]
-        self.path = uri[len(self.scheme_name) + 1:]
+        self.scheme = uri.split(':')[0]
+        self.path = uri[len(self.scheme) + 1:]
 
         # URI fragments
         self.fragment = None
@@ -37,9 +38,9 @@ class Uri(object):
             self.path = self.path.lstrip('//')
             uri_tokens = self.path.split('/')
 
-            self.authority = '//' + uri_tokens[0]
-            self.hostname = self.authority.lstrip('/')
-            self.path = self.path[len(self.authority) - 2:]
+            self.authority = uri_tokens[0]
+            self.hostname = self.authority
+            self.path = self.path[len(self.authority):]
 
             # Fetching authentication data. For instance: "http://login:password@site.com"
             self.authenticated = '@' in self.authority
@@ -50,6 +51,8 @@ class Uri(object):
             self.port = None
             if ':' in self.hostname:
                 self.hostname, self.port = self.hostname.split(':')
+
+            self.authority = '//' + self.authority
 
 
     # URI Parameters
@@ -67,7 +70,7 @@ class Uri(object):
 
     # String representation
     def __str__(self):
-        uri = '{}:'.format(self.scheme_name)
+        uri = '{}:'.format(self.scheme)
         
         if self.authority:
             if self.authenticated:
@@ -84,11 +87,15 @@ class Uri(object):
             uri += '#' + self.fragment
         return uri
 
+    # JSON serialization of the URI object
+    def json(self):
+        return json.dumps(self.__dict__, sort_keys=True, indent=2)
+
     # Summary of the URI object. Mostly for debug.
     def summary(self):
         uri_repr = '{}\n'.format(self)
         uri_repr += '\n'
-        uri_repr += "* Schema name: '{}'\n".format(self.scheme_name)
+        uri_repr += "* Schema name: '{}'\n".format(self.scheme)
         if self.authority:
             uri_repr += "* Authority path: '{}'\n".format(self.authority)
 
@@ -114,5 +121,6 @@ if __name__ == '__main__':
         print uri_str, ':'
         print '-'*len(uri_str)
         print uri.summary()
+        print uri.json()
         print ''
 

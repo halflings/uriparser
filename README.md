@@ -16,8 +16,26 @@ Doing this...
     * Schema name: 'foo'
     * Authority path: '//username:password@example.com:8042'
       . Hostname: 'example.com'
-      . User information = '//username:password'
+      . User information = 'username:password'
       . Port = '8042'
     * Path: '/over/there/index.dtb'
     * Query parameters: '{'type': 'animal', 'name': 'narwhal'}'
     * Fragment: 'nose'
+
+
+You can also serialize the structured URI as JSON. For instance, this...
+
+    uri = Uri("mailto:username@example.com?subject=Topic")
+    print uri.json()
+
+... will output:
+
+    {
+      "authority": null, 
+      "fragment": null, 
+      "parameters": {
+        "subject": "topic"
+      }, 
+      "path": "username@example.com", 
+      "scheme": "mailto"
+    }
