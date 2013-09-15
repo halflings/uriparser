@@ -1,7 +1,9 @@
 import json
 
 class Uri(object):
-    
+    """ Utility class to handle URIs """
+
+
     ESCAPE_CODES = {' ' : '%20', '<' : '%3C', '>' : '%3E', '#' : '%23', '%' : '%25', '{' : '%7B',
                     '}' : '%7D', '|' : '%7C', '\\' : '%5C', '^' : '%5E', '~' : '%7E', '[' : '%5B',
                     ']' : '%5D', '`' : '%60', ';' : '%3B', '/' : '%2F', '?' : '%3F', ':' : '%3A',
@@ -11,8 +13,19 @@ class Uri(object):
         """ URI-escapes the given string """
         return ''.join(c if not c in Uri.ESCAPE_CODES else Uri.ESCAPE_CODES[c] for c in string)
 
+    # We could parse (most of) the URI using this regex given on the RFC:
+    # http://tools.ietf.org/html/rfc3986#appendix-B
+    # We won't do it though because it spoils all the fun! \o/
+    # We're only going to use it detect broken URIs
+    URI_REGEX = "^(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?"
+
     def __init__(self, uri):
+        """ Parses the given URI """
+
         uri = uri.strip().lower()
+
+        if not re.match(Uri.URI_REGEX, uri):
+            raise ValueError("The given URI isn't valid")
 
         self.scheme = uri.split(':')[0]
         self.path = uri[len(self.scheme) + 1:]
@@ -51,31 +64,21 @@ class Uri(object):
             self.port = None
             if ':' in self.hostname:
                 self.hostname, self.port = self.hostname.split(':')
+                self.port = int(self.port)
 
-            self.authority = '//' + self.authority
-
-
-    # URI Parameters
-    def set_parameter(self, key, value):
-        self.parameters[key] = Uri.escape(value)
-
-    def remove_parameter(self, key):
-        if key in self.parameters:
-            del self.parameters[key]
 
     def serialize_parameters(self):
-        """ Returns a string representation of the uri parameters. """
+        """ Returns a serialied representation of the query parameters. """
         return '&'.join('{}={}'.format(key, value) for key, value in sorted(self.parameters.iteritems()))
 
 
     # String representation
     def __str__(self):
-        uri = '{}:'.format(self.scheme)
+        uri = '{}:'.format(Uri.escape(self.scheme))
         
         if self.authority:
             if self.authenticated:
-                uri += self.user_information
-                uri += '@'
+                uri += Uri.escape(self.user_information) + '@'
             uri += self.hostname
             if self.port:
                 uri += ':{}'.format(self.port)
@@ -84,7 +87,7 @@ class Uri(object):
         if self.parameters:
             uri += '?' + self.serialize_parameters()
         if self.fragment:
-            uri += '#' + self.fragment
+            uri += '#' + Uri.escape(self.fragment)
         return uri
 
     # JSON serialization of the URI object
@@ -112,9 +115,10 @@ class Uri(object):
         return uri_repr
 
 if __name__ == '__main__':
-    examples = {'foo://username:password@example.com:8042/over/there/index.dtb?type=animal&name=narwhal#nose',
+    examples = ['foo://username:password@example.com:8042/over/there/index.dtb?type=animal&name=narwhal#nose',
                 'mailto:username@example.com?subject=Topic',
-                'http://truc.com/lien?key=value#ha'}
+                'http://truc.com/lien?key=value#ha',
+                'broken_uri: : / something missing']
 
     for uri_str in examples:
         uri = Uri(uri_str)
