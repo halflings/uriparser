@@ -1,4 +1,19 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import json
+import re
+
+def encode_char(char):
+    """ Percent-encodes a character """
+    if len(char) > 1:
+        raise ValueError("Expected a single character, got a string of characters.")
+    return '%{}'.format(char.encode('hex')).upper()
+
+def encode_str(string):
+    """ Percent-encodes a string """
+    return ''.join(c if re.match(Uri.UNRESERVED_CHAR, c) else encode_char(c) for c in string)
+
 
 class Uri(object):
     """ Utility class to handle URIs """
@@ -8,26 +23,32 @@ class Uri(object):
                     '}' : '%7D', '|' : '%7C', '\\' : '%5C', '^' : '%5E', '~' : '%7E', '[' : '%5B',
                     ']' : '%5D', '`' : '%60', ';' : '%3B', '/' : '%2F', '?' : '%3F', ':' : '%3A',
                     '@' : '%40', '=' : '%3D', '&' : '%26', '$' : '%24'}
+
+    SCHEME_REGEX = "[a-z][a-z0-9+.-]"
+    UNRESERVED_CHAR = "[a-zA-Z0-9\-._~]"
+    HOST_PATTERN =  "[a-z\.\-]+"
+
+
     @staticmethod
-    def escape(string):
-        """ URI-escapes the given string """
-        return ''.join(c if not c in Uri.ESCAPE_CODES else Uri.ESCAPE_CODES[c] for c in string)
+    def unreserved(string):
+        """ Checks that the given string is only made of "unreserved" characters """
+        return len(re.findall("(?!{})".format(Uri.UNRESERVED_CHAR), string)) == 1
 
-    # We could parse (most of) the URI using this regex given on the RFC:
-    # http://tools.ietf.org/html/rfc3986#appendix-B
-    # We won't do it though because it spoils all the fun! \o/
-    # We're only going to use it detect broken URIs
-    URI_REGEX = "^(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?"
-
-    def __init__(self, uri):
+    @staticmethod
+    def valid_hostname(hostname):
+        """ Checks if the given hostname is valid """
+        return len(re.findall("(?![a-z0-9\.\-])", hostname)) == 1
+    
+    def __init__(self, uri, tolerant=True):
         """ Parses the given URI """
+        uri = uri.strip()
 
-        uri = uri.strip().lower()
+        # URI scheme is case-insensitive
+        self.scheme = uri.split(':')[0].lower()
 
-        if not re.match(Uri.URI_REGEX, uri):
-            raise ValueError("The given URI isn't valid")
+        if not re.match(Uri.SCHEME_REGEX, self.scheme):
+            raise ValueError("Invalid URI scheme: '{}'".format(self.scheme))
 
-        self.scheme = uri.split(':')[0]
         self.path = uri[len(self.scheme) + 1:]
 
         # URI fragments
@@ -39,8 +60,16 @@ class Uri(object):
         self.parameters = dict()
         if '?' in self.path:
             separator = '&' if '&' in self.path else ';'
-            query_params = self.path.split('?')[-1].split(separator)
+            query = '?'.join(self.path.split('?')[1:])
+            query_params = query.split(separator)
             query_params = map(lambda p : p.split('='), query_params)
+
+            if not Uri.unreserved(query.replace('=', '').replace(separator, '')):     
+                if tolerant:
+                    query_params = [map(encode_str, couple) for couple in query_params]
+                else:
+                    raise ValueError('Invalid query: {}'.format(query))
+
             self.parameters = {key : value for key, value in query_params}
             self.path = self.path.split('?')[0]
 
@@ -59,46 +88,65 @@ class Uri(object):
             self.authenticated = '@' in self.authority
             if self.authenticated:
                 self.user_information, self.hostname = self.authority.split('@')
+                
+                # Validating userinfo
+                if not Uri.unreserved(self.user_information.replace(':', '')):
+                    if tolerant:
+                        userinfo_tokens = self.user_information.split(':')
+                        self.user_information = ':'.join(map(encode_str, userinfo_tokens))
+                        print '!! TOLERANT, so: user_info =', self.user_information
+                    else:
+                        raise ValueError("Invalid user information: '{}'".format(self.user_information))
 
             # Fetching port
             self.port = None
             if ':' in self.hostname:
                 self.hostname, self.port = self.hostname.split(':')
-                self.port = int(self.port)
+                try:
+                    self.port = int(self.port)
+                    if not 0 <= self.port <= 65535:
+                        raise ValueError
+                except ValueError:
+                    raise ValueError("Invalid port: '{}'".format(self.port))
 
+            # Hostnames are case-insensitive
+            self.hostname = self.hostname.lower()
 
-    def serialize_parameters(self):
+            # Validating the hostname and path
+            if not Uri.valid_hostname(self.hostname):
+                raise ValueError("Invalid hostname: '{}'".format(self.hostname))
+            
+            if self.path and not Uri.unreserved(self.path.replace('/', '')):
+                if tolerant:
+                    path_tokens = self.path.split('/')
+                    self.path = '/'.join(map(encode_str, path_tokens))
+                    print '!! TOLERANT, so: path = ', self.path
+                else:
+                    raise ValueError("Invalid path: '{}'".format(self.path))
+
+        elif len(self.path.split('@')) > 2 or not Uri.unreserved(self.path.split('@')[-1]):
+            raise ValueError("Invalid path: '{}'".format(self.path))
+
+            
+
+    def defragment(self):
+        """ Removes any fragment from the URI """
+        self.fragment = None
+
+    def remove_query(self):
+        """ Removes any query from the URI """
+        self.parameters = dict()
+
+    def query(self):
         """ Returns a serialied representation of the query parameters. """
         return '&'.join('{}={}'.format(key, value) for key, value in sorted(self.parameters.iteritems()))
 
-
-    # String representation
-    def __str__(self):
-        uri = '{}:'.format(Uri.escape(self.scheme))
-        
-        if self.authority:
-            if self.authenticated:
-                uri += Uri.escape(self.user_information) + '@'
-            uri += self.hostname
-            if self.port:
-                uri += ':{}'.format(self.port)
-
-        uri += self.path
-        if self.parameters:
-            uri += '?' + self.serialize_parameters()
-        if self.fragment:
-            uri += '#' + Uri.escape(self.fragment)
-        return uri
-
-    # JSON serialization of the URI object
-    def json(self):
-        return json.dumps(self.__dict__, sort_keys=True, indent=2)
-
-    # Summary of the URI object. Mostly for debug.
     def summary(self):
+        """ Summary of the URI object. Mostly for debug. """
         uri_repr = '{}\n'.format(self)
         uri_repr += '\n'
         uri_repr += "* Schema name: '{}'\n".format(self.scheme)
+
         if self.authority:
             uri_repr += "* Authority path: '{}'\n".format(self.authority)
 
@@ -107,6 +155,7 @@ class Uri(object):
                 uri_repr += "  . User information = '{}'\n".format(self.user_information)
             if self.port:
                 uri_repr += "  . Port = '{}'\n".format(self.port)
+
         uri_repr += "* Path: '{}'\n".format(self.path)
         if self.parameters:
             uri_repr += "* Query parameters: '{}'\n".format(self.parameters)
@@ -114,17 +163,104 @@ class Uri(object):
             uri_repr += "* Fragment: '{}'\n".format(self.fragment)
         return uri_repr
 
+    def json(self):
+        """ JSON serialization of the URI object """
+        return json.dumps(self.__dict__, sort_keys=True, indent=2)
+
+    def __str__(self):
+        """ Outputs the URI as a string """
+        uri = '{}:'.format(self.scheme)
+        
+        if self.authority:
+            uri += '//'
+            if self.authenticated:
+                uri += self.user_information + '@'
+            uri += self.hostname
+            if self.port:
+                uri += ':{}'.format(self.port)
+
+        uri += self.path
+        if self.parameters:
+            uri += '?' + self.query()
+        if self.fragment:
+            uri += '#' + encode_str(self.fragment)
+        return uri
+
+    def __eq__(self, uri):
+        return str(self) == str(uri)
+
+
+
 if __name__ == '__main__':
-    examples = ['foo://username:password@example.com:8042/over/there/index.dtb?type=animal&name=narwhal#nose',
-                'mailto:username@example.com?subject=Topic',
-                'http://truc.com/lien?key=value#ha',
-                'broken_uri: : / something missing']
 
-    for uri_str in examples:
-        uri = Uri(uri_str)
-        print uri_str, ':'
-        print '-'*len(uri_str)
-        print uri.summary()
-        print uri.json()
-        print ''
+    print '~ '*40
+    print '~ URIPARSER unit-tests'
+    print '~ '*40
+    print ''
 
+    total_tests = total_passed = 0
+
+    print '* Testing a very complex URI (with all possible fields)'
+    uri = Uri('foo://username:password@example.com:8042/over/there/index.dtb?type=animal&name=narwhal#nose')
+
+    tests, passed = 7, 0
+    passed += uri.scheme == 'foo'
+    passed += uri.user_information == 'username:password'
+    passed += uri.authority and uri.hostname == 'example.com'
+    passed += uri.authority and uri.port == 8042
+    passed += 'type' in uri.parameters and uri.parameters['type'] == 'animal'
+    passed += uri.fragment == 'nose'
+    passed += uri.path == '/over/there/index.dtb'
+    print '   . {}/{} passed'.format(passed,tests)
+
+    total_tests += tests
+    total_passed += passed
+
+    print '* Testing URIs without an "authority part"'
+    uri = Uri('mailto:username@example.com?subject=Topic')
+    tests, passed = 3, 0
+    passed += uri.scheme == 'mailto'
+    passed += uri.path == 'username@example.com'
+    passed += 'subject' in uri.parameters and uri.parameters['subject'] == 'Topic'
+
+    print '   . {}/{} passed'.format(passed,tests)
+
+    total_tests += tests
+    total_passed += passed
+
+    print '* Testing "url normalization"'
+    uri = Uri('HTTP://eXamPLE.CoM')
+    uri_bis = Uri('http://example.com')
+    tests, passed = 1, 0
+    passed += uri == uri_bis
+
+    print '   . {}/{} passed'.format(passed,tests)
+    total_tests += tests
+    total_passed += passed
+
+    print 'Testing the "tolerant" parsing mode and percent-encoding'
+    tests, passed = 2, 0
+
+    try:
+        uri = Uri('mailto:quora.com?Subject=lol wat iz url éncoding ?', tolerant=True)
+        passed += 1
+    except ValueError:
+        pass
+    passed += 'Subject' in uri.parameters and uri.parameters['Subject'] == 'lol%20wat%20iz%20url%20%C3%A9ncoding%20%3F'
+    
+    print '   . {}/{} passed'.format(passed,tests)
+    total_tests += tests
+    total_passed += passed
+
+    print 'Testing a broken URI in the strict mode'
+    tests, passed = 1, 0
+    try:
+        uri = Uri('http://invalid_hostnéme . com', tolerant=False)
+    except ValueError:
+        passed += 1
+    print '   . {}/{} passed'.format(passed,tests)
+    total_tests += tests
+    total_passed += passed
+
+    print '- '*40
+    print 'TOTAL: Passed {}/{} tests'.format(total_passed, total_tests)
