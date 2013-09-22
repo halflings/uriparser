@@ -39,7 +39,7 @@ class Uri(object):
         """ Checks if the given hostname is valid """
         return len(re.findall("(?![a-z0-9\.\-])", hostname)) == 1
     
-    def __init__(self, uri, tolerant=True):
+    def __init__(self, uri, strict=False):
         """ Parses the given URI """
         uri = uri.strip()
 
@@ -65,10 +65,10 @@ class Uri(object):
             query_params = map(lambda p : p.split('='), query_params)
 
             if not Uri.unreserved(query.replace('=', '').replace(separator, '')):     
-                if tolerant:
-                    query_params = [map(encode_str, couple) for couple in query_params]
-                else:
+                if strict:
                     raise ValueError('Invalid query: {}'.format(query))
+                else:
+                    query_params = [map(encode_str, couple) for couple in query_params]
 
             self.parameters = {key : value for key, value in query_params}
             self.path = self.path.split('?')[0]
@@ -91,12 +91,12 @@ class Uri(object):
                 
                 # Validating userinfo
                 if not Uri.unreserved(self.user_information.replace(':', '')):
-                    if tolerant:
+                    if strict:
+                        raise ValueError("Invalid user information: '{}'".format(self.user_information))
+                    else:
                         userinfo_tokens = self.user_information.split(':')
                         self.user_information = ':'.join(map(encode_str, userinfo_tokens))
                         print '!! TOLERANT, so: user_info =', self.user_information
-                    else:
-                        raise ValueError("Invalid user information: '{}'".format(self.user_information))
 
             # Fetching port
             self.port = None
@@ -117,12 +117,12 @@ class Uri(object):
                 raise ValueError("Invalid hostname: '{}'".format(self.hostname))
             
             if self.path and not Uri.unreserved(self.path.replace('/', '')):
-                if tolerant:
+                if strict:
+                    raise ValueError("Invalid path: '{}'".format(self.path))
+                else:
                     path_tokens = self.path.split('/')
                     self.path = '/'.join(map(encode_str, path_tokens))
                     print '!! TOLERANT, so: path = ', self.path
-                else:
-                    raise ValueError("Invalid path: '{}'".format(self.path))
 
         elif len(self.path.split('@')) > 2 or not Uri.unreserved(self.path.split('@')[-1]):
             raise ValueError("Invalid path: '{}'".format(self.path))
@@ -238,11 +238,11 @@ if __name__ == '__main__':
     total_tests += tests
     total_passed += passed
 
-    print 'Testing the "tolerant" parsing mode and percent-encoding'
+    print '* Testing the "tolerant" parsing mode and percent-encoding'
     tests, passed = 2, 0
 
     try:
-        uri = Uri('mailto:quora.com?Subject=lol wat iz url éncoding ?', tolerant=True)
+        uri = Uri('mailto:quora.com?Subject=lol wat iz url éncoding ?', strict=False)
         passed += 1
     except ValueError:
         pass
@@ -252,10 +252,10 @@ if __name__ == '__main__':
     total_tests += tests
     total_passed += passed
 
-    print 'Testing a broken URI in the strict mode'
+    print '* Testing a broken URI in the strict mode'
     tests, passed = 1, 0
     try:
-        uri = Uri('http://invalid_hostnéme . com', tolerant=False)
+        uri = Uri('http://invalid_hostnéme . com')
     except ValueError:
         passed += 1
     print '   . {}/{} passed'.format(passed,tests)
