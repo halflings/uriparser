@@ -1,33 +1,32 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+"""
+    uriparser
+    A (somewhat) comprehensive URI parsing library with both strict and "tolerant" parsing, urlencoding,
+    and normalization.
+"""
+
 import json
 import re
 
-def encode_char(char):
+def urlencode_char(char):
     """ Percent-encodes a character """
     if len(char) > 1:
         raise ValueError("Expected a single character, got a string of characters.")
     return '%{}'.format(char.encode('hex')).upper()
 
-def encode_str(string):
+def urlencode_str(string):
     """ Percent-encodes a string """
-    return ''.join(c if re.match(Uri.UNRESERVED_CHAR, c) else encode_char(c) for c in string)
+    return ''.join(c if re.match(Uri.UNRESERVED_CHAR, c) else urlencode_char(c) for c in string)
 
 
 class Uri(object):
     """ Utility class to handle URIs """
 
-
-    ESCAPE_CODES = {' ' : '%20', '<' : '%3C', '>' : '%3E', '#' : '%23', '%' : '%25', '{' : '%7B',
-                    '}' : '%7D', '|' : '%7C', '\\' : '%5C', '^' : '%5E', '~' : '%7E', '[' : '%5B',
-                    ']' : '%5D', '`' : '%60', ';' : '%3B', '/' : '%2F', '?' : '%3F', ':' : '%3A',
-                    '@' : '%40', '=' : '%3D', '&' : '%26', '$' : '%24'}
-
     SCHEME_REGEX = "[a-z][a-z0-9+.-]"
     UNRESERVED_CHAR = "[a-zA-Z0-9\-._~]"
     HOST_PATTERN =  "[a-z\.\-]+"
-
 
     @staticmethod
     def unreserved(string):
@@ -68,7 +67,7 @@ class Uri(object):
                 if strict:
                     raise ValueError('Invalid query: {}'.format(query))
                 else:
-                    query_params = [map(encode_str, couple) for couple in query_params]
+                    query_params = [map(urlencode_str, couple) for couple in query_params]
 
             self.parameters = {key : value for key, value in query_params}
             self.path = self.path.split('?')[0]
@@ -95,8 +94,7 @@ class Uri(object):
                         raise ValueError("Invalid user information: '{}'".format(self.user_information))
                     else:
                         userinfo_tokens = self.user_information.split(':')
-                        self.user_information = ':'.join(map(encode_str, userinfo_tokens))
-                        print '!! TOLERANT, so: user_info =', self.user_information
+                        self.user_information = ':'.join(map(urlencode_str, userinfo_tokens))
 
             # Fetching port
             self.port = None
@@ -121,15 +119,12 @@ class Uri(object):
                     raise ValueError("Invalid path: '{}'".format(self.path))
                 else:
                     path_tokens = self.path.split('/')
-                    self.path = '/'.join(map(encode_str, path_tokens))
-                    print '!! TOLERANT, so: path = ', self.path
+                    self.path = '/'.join(map(urlencode_str, path_tokens))
 
         elif len(self.path.split('@')) > 2 or not Uri.unreserved(self.path.split('@')[-1]):
             raise ValueError("Invalid path: '{}'".format(self.path))
 
-            
-
-    def defragment(self):
+    def remove_fragment(self):
         """ Removes any fragment from the URI """
         self.fragment = None
 
@@ -138,14 +133,14 @@ class Uri(object):
         self.parameters = dict()
 
     def query(self):
-        """ Returns a serialied representation of the query parameters. """
+        """ Returns a serialized representation of the query parameters. """
         return '&'.join('{}={}'.format(key, value) for key, value in sorted(self.parameters.iteritems()))
 
     def summary(self):
-        """ Summary of the URI object. Mostly for debug. """
+        """ Summary of the URI object. Useful for debugging. """
         uri_repr = '{}\n'.format(self)
         uri_repr += '\n'
-        uri_repr += "* Schema name: '{}'\n".format(self.scheme)
+        uri_repr += "* Scheme name: '{}'\n".format(self.scheme)
 
         if self.authority:
             uri_repr += "* Authority path: '{}'\n".format(self.authority)
@@ -168,7 +163,7 @@ class Uri(object):
         return json.dumps(self.__dict__, sort_keys=True, indent=2)
 
     def __str__(self):
-        """ Outputs the URI as a string """
+        """ Outputs the URI as a normalized string """
         uri = '{}:'.format(self.scheme)
         
         if self.authority:
@@ -183,12 +178,12 @@ class Uri(object):
         if self.parameters:
             uri += '?' + self.query()
         if self.fragment:
-            uri += '#' + encode_str(self.fragment)
+            uri += '#' + urlencode_str(self.fragment)
         return uri
 
     def __eq__(self, uri):
+        """ Equivalence between two URIs: the equivalence of their respective normalized string representation """
         return str(self) == str(uri)
-
 
 
 if __name__ == '__main__':
