@@ -10,15 +10,9 @@
 import json
 import re
 
-def urlencode_char(char):
-    """ Percent-encodes a character """
-    if len(char) > 1:
-        raise ValueError("Expected a single character, got a string of characters.")
-    return '%{}'.format(char.encode('hex')).upper()
-
-def urlencode_str(string):
+def urlencode(string):
     """ Percent-encodes a string """
-    return ''.join(c if re.match(Uri.UNRESERVED_CHAR, c) else urlencode_char(c) for c in string)
+    return ''.join(c if re.match(Uri.UNRESERVED_CHAR, c) else '%' + c.encode('hex').upper() for c in string)
 
 
 class Uri(object):
@@ -67,7 +61,7 @@ class Uri(object):
                 if strict:
                     raise ValueError('Invalid query: {}'.format(query))
                 else:
-                    query_params = [map(urlencode_str, couple) for couple in query_params]
+                    query_params = [map(urlencode, couple) for couple in query_params]
 
             self.parameters = {key : value for key, value in query_params}
             self.path = self.path.split('?')[0]
@@ -94,7 +88,7 @@ class Uri(object):
                         raise ValueError("Invalid user information: '{}'".format(self.user_information))
                     else:
                         userinfo_tokens = self.user_information.split(':')
-                        self.user_information = ':'.join(map(urlencode_str, userinfo_tokens))
+                        self.user_information = ':'.join(map(urlencode, userinfo_tokens))
 
             # Fetching port
             self.port = None
@@ -119,18 +113,19 @@ class Uri(object):
                     raise ValueError("Invalid path: '{}'".format(self.path))
                 else:
                     path_tokens = self.path.split('/')
-                    self.path = '/'.join(map(urlencode_str, path_tokens))
+                    self.path = '/'.join(map(urlencode, path_tokens))
 
         elif len(self.path.split('@')) > 2 or not Uri.unreserved(self.path.split('@')[-1]):
             raise ValueError("Invalid path: '{}'".format(self.path))
 
     def remove_fragment(self):
-        """ Removes any fragment from the URI """
         self.fragment = None
 
     def remove_query(self):
-        """ Removes any query from the URI """
         self.parameters = dict()
+
+    def remove_port(self):
+        self.port = None
 
     def query(self):
         """ Returns a serialized representation of the query parameters. """
@@ -178,7 +173,7 @@ class Uri(object):
         if self.parameters:
             uri += '?' + self.query()
         if self.fragment:
-            uri += '#' + urlencode_str(self.fragment)
+            uri += '#' + urlencode(self.fragment)
         return uri
 
     def __eq__(self, uri):
