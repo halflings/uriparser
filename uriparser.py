@@ -12,10 +12,10 @@ import re
 
 def urlencode(string):
     """ Percent-encodes a string """
-    return ''.join(c if re.match(Uri.UNRESERVED_CHAR, c) else '%' + c.encode('hex').upper() for c in string)
+    return ''.join(c if re.match(URI.UNRESERVED_CHAR, c) else '%' + c.encode('hex').upper() for c in string)
 
 
-class Uri(object):
+class URI(object):
     """ Utility class to handle URIs """
 
     SCHEME_REGEX = "[a-z][a-z0-9+.-]"
@@ -25,7 +25,7 @@ class Uri(object):
     @staticmethod
     def unreserved(string):
         """ Checks that the given string is only made of "unreserved" characters """
-        return len(re.findall("(?!{})".format(Uri.UNRESERVED_CHAR), string)) == 1
+        return len(re.findall("(?!{})".format(URI.UNRESERVED_CHAR), string)) == 1
 
     @staticmethod
     def valid_hostname(hostname):
@@ -39,7 +39,7 @@ class Uri(object):
         # URI scheme is case-insensitive
         self.scheme = uri.split(':')[0].lower()
 
-        if not re.match(Uri.SCHEME_REGEX, self.scheme):
+        if not re.match(URI.SCHEME_REGEX, self.scheme):
             raise ValueError("Invalid URI scheme: '{}'".format(self.scheme))
 
         self.path = uri[len(self.scheme) + 1:]
@@ -57,7 +57,7 @@ class Uri(object):
             query_params = query.split(separator)
             query_params = map(lambda p : p.split('='), query_params)
 
-            if not Uri.unreserved(query.replace('=', '').replace(separator, '')):     
+            if not URI.unreserved(query.replace('=', '').replace(separator, '')):     
                 if strict:
                     raise ValueError('Invalid query: {}'.format(query))
                 else:
@@ -83,7 +83,7 @@ class Uri(object):
                 self.user_information, self.hostname = self.authority.split('@')
                 
                 # Validating userinfo
-                if not Uri.unreserved(self.user_information.replace(':', '')):
+                if not URI.unreserved(self.user_information.replace(':', '')):
                     if strict:
                         raise ValueError("Invalid user information: '{}'".format(self.user_information))
                     else:
@@ -105,17 +105,17 @@ class Uri(object):
             self.hostname = self.hostname.lower()
 
             # Validating the hostname and path
-            if not Uri.valid_hostname(self.hostname):
+            if not URI.valid_hostname(self.hostname):
                 raise ValueError("Invalid hostname: '{}'".format(self.hostname))
             
-            if self.path and not Uri.unreserved(self.path.replace('/', '')):
+            if self.path and not URI.unreserved(self.path.replace('/', '')):
                 if strict:
                     raise ValueError("Invalid path: '{}'".format(self.path))
                 else:
                     path_tokens = self.path.split('/')
                     self.path = '/'.join(map(urlencode, path_tokens))
 
-        elif len(self.path.split('@')) > 2 or not Uri.unreserved(self.path.split('@')[-1]):
+        elif len(self.path.split('@')) > 2 or not URI.unreserved(self.path.split('@')[-1]):
             raise ValueError("Invalid path: '{}'".format(self.path))
 
     def remove_fragment(self):
@@ -191,7 +191,7 @@ if __name__ == '__main__':
     total_tests = total_passed = 0
 
     print '* Testing a very complex URI (with all possible fields)'
-    uri = Uri('foo://username:password@example.com:8042/over/there/index.dtb?type=animal&name=narwhal#nose')
+    uri = URI('foo://username:password@example.com:8042/over/there/index.dtb?type=animal&name=narwhal#nose')
 
     tests, passed = 7, 0
     passed += uri.scheme == 'foo'
@@ -207,7 +207,7 @@ if __name__ == '__main__':
     total_passed += passed
 
     print '* Testing URIs without an "authority part"'
-    uri = Uri('mailto:username@example.com?subject=Topic')
+    uri = URI('mailto:username@example.com?subject=Topic')
     tests, passed = 3, 0
     passed += uri.scheme == 'mailto'
     passed += uri.path == 'username@example.com'
@@ -219,8 +219,8 @@ if __name__ == '__main__':
     total_passed += passed
 
     print '* Testing "url normalization"'
-    uri = Uri('HTTP://eXamPLE.CoM')
-    uri_bis = Uri('http://example.com')
+    uri = URI('HTTP://eXamPLE.CoM')
+    uri_bis = URI('http://example.com')
     tests, passed = 1, 0
     passed += uri == uri_bis
 
@@ -232,7 +232,7 @@ if __name__ == '__main__':
     tests, passed = 2, 0
 
     try:
-        uri = Uri('mailto:quora.com?Subject=lol wat iz url éncoding ?', strict=False)
+        uri = URI('mailto:quora.com?Subject=lol wat iz url éncoding ?', strict=False)
         passed += 1
     except ValueError:
         pass
@@ -245,7 +245,7 @@ if __name__ == '__main__':
     print '* Testing a broken URI in the strict mode'
     tests, passed = 1, 0
     try:
-        uri = Uri('http://invalid_hostnéme . com')
+        uri = URI('http://invalid_hostnéme . com')
     except ValueError:
         passed += 1
     print '   . {}/{} passed'.format(passed,tests)

@@ -6,8 +6,9 @@ URI parser for Python that supports many schemes (URLs, mailto, ...)
 ### Example:
 Doing this...
 
+    from uriparser import URI
     uri_str = 'foo://username:password@example.com:8042/over/there/index.dtb?type=animal&name=narwhal#nose'
-    uri = Uri(uri_str)
+    uri = URI(uri_str)
     print uri.summary()
 
 ...will output:
@@ -25,7 +26,7 @@ Doing this...
 
 You can also serialize the structured URI as JSON. For instance, this...
 
-    uri = Uri("mailto:username@example.com?subject=Topic")
+    uri = URI("mailto:username@example.com?subject=Topic")
     print uri.json()
 
 ... will output:
