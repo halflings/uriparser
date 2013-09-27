@@ -20,17 +20,17 @@ class URI(object):
 
     SCHEME_REGEX = "[a-z][a-z0-9+.-]"
     UNRESERVED_CHAR = "[a-zA-Z0-9\-._~]"
-    HOST_PATTERN =  "[a-z\.\-]+"
+    HOSTNAME_CHAR =  "[a-z0-9\.\-]"
 
     @staticmethod
     def unreserved(string):
         """ Checks that the given string is only made of "unreserved" characters """
-        return len(re.findall("(?!{})".format(URI.UNRESERVED_CHAR), string)) == 1
+        return all(re.match(URI.UNRESERVED_CHAR, c) for c in string)
 
     @staticmethod
     def valid_hostname(hostname):
         """ Checks if the given hostname is valid """
-        return len(re.findall("(?![a-z0-9\.\-])", hostname)) == 1
+        return all(re.match(URI.HOSTNAME_CHAR, c) for c in hostname)
     
     def __init__(self, uri, strict=False):
         """ Parses the given URI """
